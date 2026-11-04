@@ -5,6 +5,15 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+
+## Global variables
+
+P_EPS = 1e-6
+
+
+
+## Classes
+
 class NightFever():
 	""" Core model with the three RNN circuit """
 	pass
@@ -13,15 +22,16 @@ class NightFever():
 class RNN(nn.Module):
 	""" Basic RNN block"""
 
-	def __init__(self, n_dim, n_hidden, dev, batch_size=None):
+	def __init__(self, n_dim, n_layers, n_hidden, dev, batch_size=None):
 		
 		super(RNN, self).__init__()
 
 		self.n_dim     = n_dim
 		self.n_hidden  = n_hidden
+		self.n_layers  = n_layers
 		self.dev       = dev
 
-		self.rnn = nn.GRU(n_dim, n_hidden, n_layers=1, batch_first=True).to(self.dev)
+		self.rnn = nn.GRU(n_dim, n_hidden, n_layers, batch_first=True).to(self.dev)
 		self.out  = nn.Linear(n_hidden, n_dim, bias=True).to(self.dev)
 		self.sig  = nn.Sigmoid().to(self.dev)
 
