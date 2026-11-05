@@ -40,33 +40,26 @@ class NightFever(nn.Module):
 		self.fast = RNN(n_dim, 1, n_hidden_fast, dev, batch_size)
 		self.slow = RNN(n_dim, 2, n_hidden_slow, dev, batch_size)
 
-		self.perc_fast = nn.Linear(n_hidden_perception, n_hidden_fast)
-		self.fast_perc = nn.Linear(n_hidden_fast, n_hidden_perception)
-		## linear maps from fast to slow, fast to perc, ...  
+		# Each RNN takes and returns an n_dim vector, so every link is n_dim -> n_dim.
+		self.perc_fast = nn.Linear(n_hidden_perception, n_hidden_fast)   # perception -> fast
+		self.perc_slow = nn.Linear(n_hidden_perception, n_hidden_slow)   # perception -> slow
+		self.fast_slow = nn.Linear(n_hidden_fast, n_hidden_slow)   # fast -> slow
+		self.fast_perc = nn.Linear(n_hidden_fast, n_hidden_perception)   # fast -> perception
+		self.slow_perc = nn.Linear(n_hidden_slow, n_hidden_perception)   # slow -> perception
+		self.slow_fast = nn.Linear(n_hidden_fast, n_hidden_slow)   # slow -> fast
 
 
 	def forward(self, x):
-		(batch_size, n_tokens, n_dim) = x.shape    
+		batch_size, n_tokens, n_dim = x.shape
+		total_out = torch.zeros(batch_size, n_tokens, n_dim, device=x.device)
 
-		if batch_size is None:
-			self.perception.init_hidden(batch_size)
-			self.fast.init_hidden(batch_size)
-			self.slow.init_hidden(batch_size)
-
-		total_out = torch.zeros(batch_size, n_tokens, n_dim)
-
-		for t in range(n_tokens):  # take the song step by step
-			out = self.perception(x[:, t])
-			perc2fast = self.perc_fast(out)
-			perc2slow = self.perc_slow(out)
-			out = self.fast(perc2fast)
-			fast2slow = self.fast_slow(out)
-			fast2perc = self.fast_perc(out)
-			out = self.slow(perc2slow + fast2slow)
-			slow2perc = self.slow_perc(out)
-			slow2fast = self.slow_fast(out)
-			_ = self.fast(slow2fast)
-			total_out[:, t] = self.perception(fast2perc + slow2perc)
+		for t in range(n_tokens):                       # one token at a time, so they can talk
+			token = x[:, t:t+1]                         # keep the time dim: (B, 1, n_dim)
+			perc  = self.perception(token)             # perception reads the token
+			fast  = self.fast(self.perc_fast(perc))    # fast reads perception
+			slow  = self.slow(self.perc_slow(perc) + self.fast_slow(fast))  # slow reads perc + fast
+			# top-down: fast and slow feed back into perception for this step's readout
+			total_out[:, t] = self.perception(self.fast_perc(fast) + self.slow_perc(slow))[:, 0]
 
 		return total_out 
 
